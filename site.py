@@ -52,6 +52,7 @@ class SiteAnalyzer:
 
     def _get_connectivity(self, atoms, cutoff_multiplier=1.0):
         """
+        Note: need to condense this with the surface method
         Generate the connectivity of an atoms obj.
         Args:
             atoms (ase.Atoms): object which will have its connectivity considered

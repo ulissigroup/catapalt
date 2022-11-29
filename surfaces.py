@@ -138,3 +138,44 @@ class SurfaceAnalyzer:
         neighborList.update(slab_atoms)
         overall_connectivity_matrix = neighborList.get_connectivity_matrix()
         return overall_connectivity_matrix
+
+    def get_stdev_of_z(self):
+        """
+        Calculate the standard deviation in the z-coordinates normalized by the radius.
+        This indicates the degree of step character as perfectly planar surfaces will have a value
+        close to zero.
+
+        Returns:
+            (float): The standard deviation in the z-coordinate
+        """
+        surface_atoms = self.slab[
+            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
+        ]
+        surface_atoms.set_positions(
+            surface_atoms.get_positions() - surface_atoms.get_center_of_mass()
+        )
+        cutoff = natural_cutoffs(surface_atoms)
+        surface_z_coords_normalized = [
+            atom.z / cutoff[idx] for idx, atom in enumerate(surface_atoms)
+        ]
+        return np.std(surface_z_coords_normalized)
+
+    def get_surface_cn_info(self):
+        """
+        Calculates the surface coordination numbers (cn) for each surface atom which is used to
+        return (1) the mean surface cn (2) a dictionary of the unique coordination numbers and
+        their frequency
+
+        Returns:
+            (dict): the coordination info. ex. `{"mean": 5.5, "proportions": {5: 0.5, 6: 0.5}}
+        """
+        surface_atoms = self.slab[
+            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
+        ]
+        connectivity_matrix = self._get_connectivity_matrix(surface_atoms).toarray()
+        cns = [sum(row) for row in connectivity_matrix]
+        proportion_cns = {}
+        for cn in np.unique(cns):
+            proportion_cns[cn] = cns.count(cn) / len(cns)
+        cn_info = {"mean": np.mean(cns), "proportions": proportion_cns}
+        return cn_info
