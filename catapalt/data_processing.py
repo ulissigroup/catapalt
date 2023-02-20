@@ -3,9 +3,11 @@
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.analysis.local_env import VoronoiNN
+import warnings
+import numpy as np
 
 
-def tag_surface_atoms(bulk_struct, surface_struct):
+def tag_surface_atoms(surface_struct, bulk_struct = None, bulk_cn_dict = None):
     """
     Sets the tags of an `ase.Atoms` object. Any atom that we consider a "bulk"
     atom will have a tag of 0, and any atom that we consider a "surface" atom
@@ -16,13 +18,24 @@ def tag_surface_atoms(bulk_struct, surface_struct):
         surface_struct (pymatgen.structure.Structure):  An object of the surface structure
             with wyckoff site info.
     """
-    voronoi_tags = find_surface_atoms_with_voronoi(bulk_struct, surface_struct)
+    if bulk_struct is None and bulk_cn_dict is None:
+        warnings.warn("No bulk coordination information was provided, assuming the bulk atoms have CN = 12, this will cause errors if untrue.")
+    bulk_cn_dict = get_bulk_cn(bulk_struct, bulk_cn_dict, surface_struct)
+    voronoi_tags = find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct)
     surface_atoms = AseAtomsAdaptor.get_atoms(surface_struct)
     surface_atoms.set_tags(voronoi_tags)
     return surface_atoms
 
+def get_bulk_cn(bulk_struct, bulk_cn_dict, surface_struct):
+    if bulk_struct is None and bulk_cn_dict is None:
+        cn_dict = {}
+        for el in np.unique(AseAtomsAdaptor.get_atoms(surface_struct).get_chemical_symbols()):
+            bulk_cn_dict[el] = 12
+    elif bulk_struct is not None:
+        bulk_cn_dict = calculate_coordination_of_bulk_struct(bulk_struct)
+    return bulk_cn_dict
 
-def find_surface_atoms_with_voronoi(bulk_struct, surface_struct):
+def find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct):
     """
     Labels atoms as surface or bulk atoms according to their coordination
     relative to their bulk structure. If an atom's coordination is less than it
@@ -37,7 +50,6 @@ def find_surface_atoms_with_voronoi(bulk_struct, surface_struct):
     """
     # Initializations
     center_of_mass = get_center_of_mass(surface_struct)
-    bulk_cn_dict = calculate_coordination_of_bulk_struct(bulk_struct)
     voronoi_nn = VoronoiNN(tol=0.1)  # 0.1 chosen for better detection
 
     tags = []
@@ -50,7 +62,7 @@ def find_surface_atoms_with_voronoi(bulk_struct, surface_struct):
                 # Tag as surface if atom is under-coordinated
                 cn = voronoi_nn.get_cn(surface_struct, idx, use_weights=True)
                 cn = round(cn, 5)
-                if cn < bulk_cn_dict[site.full_wyckoff]:
+                if cn < bulk_cn_dict[site.species_string]:
                     tags.append(1)
                 else:
                     tags.append(0)
