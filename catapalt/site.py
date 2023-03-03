@@ -45,19 +45,16 @@ class SiteAnalyzer:
                         if idx_el in bound_slab_idxs
                     ],
                     "slab_atom_idxs": bound_slab_idxs,
-                    "bound_position": adslab_positions[idx]
+                    "bound_position": adslab_positions[idx],
                 }
                 binding_info.append(ads_idx_info)
         return binding_info
-
-    def get_dentate(self):
-        return len(self.binding_info)
 
     def _get_connectivity(self, atoms, cutoff_multiplier=1.0):
         """
         Note: need to condense this with the surface method
         Generate the connectivity of an atoms obj.
-        
+
         Args:
             atoms (ase.Atoms): object which will have its connectivity considered
             cutoff_multiplier (float, optional): cushion for small atom movements when assessing
@@ -72,19 +69,38 @@ class SiteAnalyzer:
         neighbor_list.update(atoms)
         matrix = neighborlist.get_connectivity_matrix(neighbor_list.nl).toarray()
         return matrix
-    
+
+    def get_dentate(self):
+        """
+        Get the number of adsorbate atoms that are bound to the surface.
+
+        Returns:
+            (int): The number of binding interactions
+        """
+        return len(self.binding_info)
+
+    def get_site_types(self):
+        """
+        Get the number of surface atoms the bound adsorbate atoms are interacting with as a
+        proximate for hollow, bridge, and atop binding.
+
+        Returns:
+            (list[int]): number of interacting surface atoms for each adsorbate atom bound.
+        """
+        return [len(binding["slab_atom_idxs"]) for binding in self.binding_info]
+
     def get_bound_atom_positions(self):
         """
         Get the euclidean coordinates of all bound adsorbate atoms.
-        
+
         Returns:
-            (list): euclidean coordinats of bound atoms
+            (list[np.array]): euclidean coordinates of bound atoms
         """
         positions = []
         for atom in self.binding_info:
             positions.append(atom["bound_position"])
         return positions
-    
+
     def get_minimum_site_proximity(self, site_to_compare):
         """
         Note: might be good to check the surfaces are identical and raise an error otherwise.
@@ -92,14 +108,18 @@ class SiteAnalyzer:
 
         Args:
             site_to_compare (catapalt.SiteAnalyzer): site analysis instance of the other adslab.
-            
-        Returns: 
+
+        Returns:
             (float): The minimum distance between bound adsorbate atoms on a surface.
-        """  
+        """
         this_positions = self.get_bound_atoms_positions()
         other_positions = site_to_compare.get_bound_positions()
         distances = []
         for this_position in this_positions:
-            distances.extend([euclidean(this_position, other_position) for other_position in other_positions])
+            distances.extend(
+                [
+                    euclidean(this_position, other_position)
+                    for other_position in other_positions
+                ]
+            )
         return min(distances)
-
