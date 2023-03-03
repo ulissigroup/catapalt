@@ -5,6 +5,7 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.analysis.local_env import VoronoiNN
 import warnings
 import numpy as np
+from collections import defaultdict
 
 
 def tag_surface_atoms(surface_struct, bulk_struct = None, bulk_cn_dict = None):
@@ -21,9 +22,12 @@ def tag_surface_atoms(surface_struct, bulk_struct = None, bulk_cn_dict = None):
     if bulk_struct is None and bulk_cn_dict is None:
         warnings.warn("No bulk coordination information was provided, assuming the bulk atoms have CN = 12, this will cause errors if untrue.")
     bulk_cn_dict = get_bulk_cn(bulk_struct, bulk_cn_dict, surface_struct)
-    voronoi_tags = find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct)
     surface_atoms = AseAtomsAdaptor.get_atoms(surface_struct)
-    surface_atoms.set_tags(voronoi_tags)
+    voronoi_tags = find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct)
+    height_tags = find_surface_atoms_by_height(surface_atoms)
+    # If either of the methods consider an atom a "surface atom", then tag it as such.
+    tags = [max(v_tag, h_tag) for v_tag, h_tag in zip(voronoi_tags, height_tags)]
+    surface_atoms.set_tags(tags)
     return surface_atoms
 
 def get_bulk_cn(bulk_struct, bulk_cn_dict, surface_struct):
@@ -51,7 +55,7 @@ def find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct):
     # Initializations
     center_of_mass = get_center_of_mass(surface_struct)
     voronoi_nn = VoronoiNN(tol=0.1)  # 0.1 chosen for better detection
-
+    
     tags = []
     for idx, site in enumerate(surface_struct):
 
@@ -62,7 +66,7 @@ def find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct):
                 # Tag as surface if atom is under-coordinated
                 cn = voronoi_nn.get_cn(surface_struct, idx, use_weights=True)
                 cn = round(cn, 5)
-                if cn < bulk_cn_dict[site.species_string]:
+                if cn < min(bulk_cn_dict[site.species_string]):
                     tags.append(1)
                 else:
                     tags.append(0)
@@ -74,6 +78,32 @@ def find_surface_atoms_with_voronoi(bulk_cn_dict, surface_struct):
         # Tag as bulk otherwise
         else:
             tags.append(0)
+    return tags
+
+def find_surface_atoms_by_height(surface_atoms):
+    '''
+    As discussed in the docstring for `_find_surface_atoms_with_voronoi`,
+    sometimes we might accidentally tag a surface atom as a bulk atom if there
+    are multiple coordination environments for that atom type within the bulk.
+    One heuristic that we use to address this is to simply figure out if an
+    atom is close to the surface. This function will figure that out.
+    Specifically:  We consider an atom a surface atom if it is within 2
+    Angstroms of the heighest atom in the z-direction (or more accurately, the
+    direction of the 3rd unit cell vector).
+    Arg:
+        surface_atoms   The surface where you are trying to find surface sites in
+                        `ase.Atoms` format
+    Returns:
+        tags            A list that contains the indices of
+                        the surface atoms
+    '''
+    unit_cell_height = np.linalg.norm(surface_atoms.cell[2])
+    scaled_positions = surface_atoms.get_scaled_positions()
+    scaled_max_height = max(scaled_position[2] for scaled_position in scaled_positions)
+    scaled_threshold = scaled_max_height - 2. / unit_cell_height
+
+    tags = [0 if scaled_position[2] < scaled_threshold else 1
+            for scaled_position in scaled_positions]
     return tags
 
 
@@ -96,12 +126,15 @@ def calculate_coordination_of_bulk_struct(bulk_struct):
     sga = SpacegroupAnalyzer(bulk_struct)
 
     # We'll only loop over the symmetrically distinct sites for speed's sake
-    bulk_cn_dict = {}
-    for idx, site in enumerate(bulk_struct):
-        if site.full_wyckoff not in bulk_cn_dict:
-            cn = voronoi_nn.get_cn(bulk_struct, idx, use_weights=True)
-            cn = round(cn, 5)
-            bulk_cn_dict[site.full_wyckoff] = cn
+    sym_struct = sga.get_symmetrized_structure()
+
+    # We'll only loop over the symmetrically distinct sites for speed's sake
+    bulk_cn_dict = defaultdict(set)
+    for idx in sym_struct.equivalent_indices:
+        site = sym_struct[idx[0]]
+        cn = voronoi_nn.get_cn(sym_struct, idx[0], use_weights=True)
+        cn = round(cn, 5)
+        bulk_cn_dict[site.species_string].add(cn)
     return bulk_cn_dict
 
 
