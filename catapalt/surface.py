@@ -208,11 +208,8 @@ class SurfaceAnalyzer:
         Returns:
             (dict): the coordination info. ex. `{"mean": 5.5, "proportions": {5: 0.5, 6: 0.5}}
         """
-        surface_atoms = self.slab[
-            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
-        ]
-        connectivity_matrix = self._get_connectivity_matrix(surface_atoms).toarray()
-        cns = [sum(row) for row in connectivity_matrix]
+        connectivity_matrix = self._get_connectivity_matrix(self.slab).toarray()
+        cns = [sum(connectivity_matrix[idx]) for idx, tag in  enumerate(self.slab.get_tags()) if tag == 1]
         proportion_cns = {}
         for cn in np.unique(cns):
             proportion_cns[cn] = cns.count(cn) / len(cns)
@@ -228,13 +225,12 @@ class SurfaceAnalyzer:
         Returns:
             (dict): the generalized coordination info. ex. `{"mean": 5.5, "min": 5, "max": 6}
         """
-        surface_atoms = self.slab[
-            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
-        ]
-        connectivity_matrix = self._get_connectivity_matrix(surface_atoms).toarray()
-        cns = [sum(row) for row in connectivity_matrix]
+        connectivity_matrix = self._get_connectivity_matrix(self.slab).toarray()
+        cns = np.sum(connectivity_matrix, axis=1)
+        surface_idx = np.array([idx for idx, tag in  enumerate(self.slab.get_tags()) if tag == 1])
         cn_matrix = np.array(cns)*connectivity_matrix
         gcn = np.sum(cn_matrix, axis=1)/12
+        gcn = gcn[surface_idx]
         gcn_info = {"mean": np.mean(gcn), "min": np.min(gcn), "max": np.max(gcn)}
 
         return gcn_info
