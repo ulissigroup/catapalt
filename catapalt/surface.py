@@ -199,6 +199,26 @@ class SurfaceAnalyzer:
         ]
         return np.std(surface_z_coords_normalized)
 
+    def get_surface_neighbor_info(self):
+        """
+        Calculates the surface neighbor numbers for each surface atom which is used to
+        return (1) the mean, min, and max surface neighbors (2) a dictionary of the unique neighbor numbers and
+        their frequency
+        Returns:
+            (dict): the generalized surface neighbor info. ex. `{"mean": 5.5, "min": 5, 
+                "max": 6, "proportions": {5: 0.5, 6: 0.5}}
+        """
+        surface_atoms = self.slab[
+            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
+        ]
+        connectivity_matrix = self._get_connectivity_matrix(surface_atoms).toarray()
+        nns = [sum(row) for row in connectivity_matrix]
+        proportion_nns = {}
+        for nn in np.unique(nns):
+            proportion_nns[nn] = nns.count(nn) / len(nns)
+        nn_info = {"mean": np.mean(nns), "proportions": proportion_nns}
+        return nn_info
+    
     def get_surface_cn_info(self):
         """
         Calculates the surface coordination numbers (cn) for each surface atom which is used to
@@ -206,18 +226,42 @@ class SurfaceAnalyzer:
         their frequency
 
         Returns:
-            (dict): the coordination info. ex. `{"mean": 5.5, "proportions": {5: 0.5, 6: 0.5}}
+            (dict): the generalized coordination info. ex. `{"mean": 5.5, "min": 5, 
+                "max": 6, "proportions": {5: 0.5, 6: 0.5}}
         """
-        surface_atoms = self.slab[
-            [idx for idx, tag in enumerate(self.slab.get_tags()) if tag == 1]
-        ]
-        connectivity_matrix = self._get_connectivity_matrix(surface_atoms).toarray()
-        cns = [sum(row) for row in connectivity_matrix]
+        connectivity_matrix = self._get_connectivity_matrix(self.slab).toarray()
+        cns = [sum(connectivity_matrix[idx]) for idx, tag in  enumerate(self.slab.get_tags()) if tag == 1]
         proportion_cns = {}
         for cn in np.unique(cns):
             proportion_cns[cn] = cns.count(cn) / len(cns)
-        cn_info = {"mean": np.mean(cns), "proportions": proportion_cns}
+        cn_info = {"mean": np.mean(cns), "proportions": proportion_cns,
+                   "min" = min(cns), "max": max(cns)}
+
         return cn_info
+
+    def get_surface_gcn_info(self):
+        """
+        Calculates the surface generalized coordination numbers (gcn) for each surface atom which is used to
+        return (1) the mean surface gcn (2) the minimum surface gcn (3) the maximum surface gcn
+        
+        Returns:
+            (dict): the generalized coordination info. ex. `{"mean": 5.5, "min": 5, 
+                "max": 6, "proportions": {5: 0.5, 6: 0.5}}
+        """
+        connectivity_matrix = self._get_connectivity_matrix(self.slab).toarray()
+        cns = np.sum(connectivity_matrix, axis=1)
+        surface_idx = np.array([idx for idx, tag in  enumerate(self.slab.get_tags()) if tag == 1])
+        cn_matrix = np.array(cns)*connectivity_matrix
+        gcn = np.sum(cn_matrix, axis=1)/np.max(cn_matrix, axis=1)
+        gcn = gcn[surface_idx]
+        for gcn in np.unique(gcns):
+            proportion_cns[gcn] = cns.count(gcn) / len(gcns)
+            
+        gcn_info = {"mean": np.mean(gcn), "min": np.min(gcn), "max": np.max(gcn),
+                    "proportions": proportion_gcns}
+
+        return gcn_info
+
 
     def find_nodes_per_area(self, thresh):
         surface_atoms = self.slab[
