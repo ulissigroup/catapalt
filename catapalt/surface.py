@@ -252,7 +252,7 @@ class SurfaceAnalyzer:
         cns = np.sum(connectivity_matrix, axis=1)
         surface_idx = np.array([idx for idx, tag in  enumerate(self.slab.get_tags()) if tag == 1])
         cn_matrix = np.array(cns)*connectivity_matrix
-        gcn = np.sum(cn_matrix, axis=1)/np.max(cn_matrix)
+        gcn = np.sum(cn_matrix, axis=1)/np.max(cn_matrix, axis=1)
         gcn = gcn[surface_idx]
         for gcn in np.unique(gcns):
             proportion_cns[gcn] = cns.count(gcn) / len(gcns)
