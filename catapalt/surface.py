@@ -223,10 +223,12 @@ class SurfaceAnalyzer:
             relevant_simplices = [
                 simplex for simplex in delaunay_2d_mesh.simplices if idx in simplex
             ]
-            average_angle = self._get_node_label(idx, relevant_simplices, plane_dict)
-            graph.add_node(idx, average_angle=average_angle)
+            
+            if len(relevant_simplices) > 0:
+                average_angle = self._get_node_label(idx, relevant_simplices, plane_dict)
+                graph.add_node(idx, average_angle=average_angle)
                 
-        # Iterate over simplices to define edges TODO: ADD PBC STITCHING
+        # Iterate over simplices to define edges 
         for simplex in delaunay_2d_mesh.simplices:
             for edge_pair in combinations(simplex, 2):
                 if all([node_num in range(len(surface_atoms)) for node_num in edge_pair]):
