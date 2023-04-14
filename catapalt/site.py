@@ -113,7 +113,7 @@ class SiteAnalyzer:
             (float): The minimum distance between bound adsorbate atoms on a surface.
         """
         this_positions = self.get_bound_atoms_positions()
-        other_positions = site_to_compare.get_bound_positions()
+        other_positions = site_to_compare.get_bound_atom_positions()
         distances = []
         for this_position in this_positions:
             distances.extend(
