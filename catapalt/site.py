@@ -1,13 +1,14 @@
 """A class for analyzing the nature of the site and how the adsorbate is bound."""
 
 import numpy as np
-from ase import neighborlist
+from ase import neighborlist, Atoms
 from ase.neighborlist import natural_cutoffs
 from scipy.spatial.distance import euclidean
+from itertools import combinations
 
 
 class SiteAnalyzer:
-    def __init__(self, adslab, cutoff_multiplier):
+    def __init__(self, adslab, cutoff_multiplier=1.0):
         """
         Initialize class to handle site based analysis.
 
@@ -54,7 +55,6 @@ class SiteAnalyzer:
         """
         Note: need to condense this with the surface method
         Generate the connectivity of an atoms obj.
-
         Args:
             atoms (ase.Atoms): object which will have its connectivity considered
             cutoff_multiplier (float, optional): cushion for small atom movements when assessing
@@ -64,7 +64,10 @@ class SiteAnalyzer:
         """
         cutoff = natural_cutoffs(atoms, mult=cutoff_multiplier)
         neighbor_list = neighborlist.NeighborList(
-            cutoff, self_interaction=False, bothways=True
+            cutoff,
+            self_interaction=False,
+            bothways=True,
+            skin=0.05,
         )
         neighbor_list.update(atoms)
         matrix = neighborlist.get_connectivity_matrix(neighbor_list.nl).toarray()
@@ -111,15 +114,40 @@ class SiteAnalyzer:
 
         Returns:
             (float): The minimum distance between bound adsorbate atoms on a surface.
+                and returns `np.nan` if one or more of the configurations was not
+                surface bound.
         """
-        this_positions = self.get_bound_atoms_positions()
+        this_positions = self.get_bound_atom_positions()
         other_positions = site_to_compare.get_bound_atom_positions()
         distances = []
-        for this_position in this_positions:
-            distances.extend(
-                [
-                    euclidean(this_position, other_position)
-                    for other_position in other_positions
-                ]
-            )
-        return min(distances)
+        if len(this_positions) > 0 and len(other_positions) > 0:
+            for this_position in this_positions:
+                for other_position in other_positions:
+                    fake_atoms = Atoms("CO", positions=[this_position, other_position])
+                    distances.append(fake_atoms.get_distance(0, 1, mic=True))
+            return min(distances)
+        else:
+            return np.nan
+
+    def get_adsorbate_bond_lengths(self):
+        """ """
+        bond_lengths = {"adsorbate-adsorbate": {}, "adsorbate-surface": {}}
+        adsorbate = self.atoms[
+            [idx for idx, tag in enumerate(self.atoms.get_tags()) if tag == 2]
+        ]
+        adsorbate_connectivity = self._get_connectivity(adsorbate)
+        combos = list(combinations(range(len(adsorbate)), 2))
+        for combo in combos:
+            if adsorbate_connectivity[combo[0], combo[1]] == 1:
+                bond_lengths["adsorbate-adsorbate"][
+                    tuple(np.sort(combo))
+                ] = adsorbate.get_distance(combo[0], combo[1], mic=True)
+
+        for ads_info in self.binding_info:
+            adsorbate_idx = ads_info["adsorbate_idx"]
+            bond_lengths["adsorbate-surface"][adsorbate_idx] = [
+                self.atoms.get_distances(adsorbate_idx, slab_idx, mic=True)[0]
+                for slab_idx in ads_info["slab_atom_idxs"]
+            ]
+
+        return bond_lengths

@@ -5,11 +5,11 @@ https://github.com/ulissigroup/NuclearityCalculation
 from itertools import product, combinations
 import numpy as np
 
-# import graph_tool as gt
+import graph_tool as gt
 from ase import neighborlist
 from ase.neighborlist import natural_cutoffs
 
-# from graph_tool import topology
+from graph_tool import topology
 from scipy.spatial import Delaunay
 import copy
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -223,15 +223,19 @@ class SurfaceAnalyzer:
             relevant_simplices = [
                 simplex for simplex in delaunay_2d_mesh.simplices if idx in simplex
             ]
-            
+
             if len(relevant_simplices) > 0:
-                average_angle = self._get_node_label(idx, relevant_simplices, plane_dict)
+                average_angle = self._get_node_label(
+                    idx, relevant_simplices, plane_dict
+                )
                 graph.add_node(idx, average_angle=average_angle)
-                
-        # Iterate over simplices to define edges 
+
+        # Iterate over simplices to define edges
         for simplex in delaunay_2d_mesh.simplices:
             for edge_pair in combinations(simplex, 2):
-                if all([node_num in range(len(surface_atoms)) for node_num in edge_pair]):
+                if all(
+                    [node_num in range(len(surface_atoms)) for node_num in edge_pair]
+                ):
                     graph.add_edge(*edge_pair)
         return graph
 
@@ -273,15 +277,18 @@ class SurfaceAnalyzer:
             )
         )
         return np.arccos(cos)
-    
+
     def _custom_tile_atoms(self, atoms):
-        vectors = [v for v in atoms.cell if ((round(v[0], 3) != 0) or (round(v[1],3 != 0)))]
-        repeats = list(product([-1,0,1],repeat = 2))
-        repeats.remove((0,0))
+        vectors = [
+            v for v in atoms.cell if ((round(v[0], 3) != 0) or (round(v[1], 3 != 0)))
+        ]
+        repeats = list(product([-1, 0, 1], repeat=2))
+        repeats.remove((0, 0))
         new_atoms = copy.deepcopy(atoms)
         for repeat in repeats:
             atoms_shifted = copy.deepcopy(atoms)
-            atoms_shifted.set_positions(atoms.get_positions() + vectors[0]*repeat[0] + vectors[1]*repeat[1])
+            atoms_shifted.set_positions(
+                atoms.get_positions() + vectors[0] * repeat[0] + vectors[1] * repeat[1]
+            )
             new_atoms += atoms_shifted
         return new_atoms
-            
